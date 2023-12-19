@@ -1,0 +1,76 @@
+#lang racket
+(provide convert-complex-datum)
+(require "utils.rkt")
+;; <exp> ::= (quote <datum>)
+;;        |  <uvar>
+;;        |  (if <exp> <exp> <exp>)
+;;        |  (set! <uvar> <exp>)
+;;        |  (begin <exp>+)
+;;        |  (lambda (<uvar>*) <exp>)
+;;        |  (let ((<uvar> <exp>)*) <exp>)
+;;        |  (letrec ((<uvar> <exp>)*) <exp>)
+;;        |  (<prim> <exp>*)
+;;        |  (<exp> <exp>*)
+(define (convert-complex-datum exp)
+  (define (convert exp k)
+    (match exp
+      ((quote ,d) (if (or (pair? d) (vector? d))
+                      (let ((t (unique-symbol 't)))
+                        (k t `((,t ,(convert-datum d)))))
+                      (k exp '())))
+      (,uvar (guard (symbol? uvar)) (k uvar '()))
+      ((if ,q ,a ,e)
+       (convert*
+        (cdr exp)
+        (lambda (qae bindings)
+          (k (cons 'if qae) bindings))))
+      ((set! ,uvar ,exp)
+       (convert exp (lambda (exp bindings)
+                      (k `(set! ,uvar ,exp) bindings))))
+      ((begin . ,exp*)
+       (convert* exp* (lambda (exp* bindings)
+                        (k (cons 'begin exp*) bindings))))
+      ((lambda ,x* ,body)
+       (convert body (lambda (body bindings)
+                       (k `(lambda ,x* ,body) bindings))))
+      ((let ,bds ,body)
+       (: bds
+          (lambda (x* e*)
+            (convert*
+             e* (lambda (e* bindings0)
+                  (convert
+                   body (lambda (body bindings1)
+                          (k (Let x* e* body)
+                             (append bindings0 bindings1)))))))))
+      ((letrec ,bds ,body)
+       (: bds
+          (lambda (x* e*)
+            (convert*
+             e* (lambda (e* bindings0)
+                  (convert
+                   body (lambda (body bindings1)
+                          (k (Letrec x* e* body)
+                             (append bindings0 bindings1)))))))))
+      ((,prim . ,rands)
+       (guard (prim? prim))
+       (convert* rands (lambda (rands bindings)
+                         (k (cons prim rands) bindings))))
+      ((,rator . ,rands) (convert* exp k))))
+  (define convert* (make-proc* convert append))
+  (convert exp (lambda (exp bindings)
+                 (if (null? bindings)
+                     exp
+                     `(let ,bindings ,exp)))))
+;; <exp> ::= (quote <immediate>)
+;;        |  <uvar>
+;;        |  (if <exp> <exp> <exp>)
+;;        |  (set! <uvar> <exp>)
+;;        |  (begin <exp>+)
+;;        |  (lambda (<uvar>*) <exp>)
+;;        |  (let ((<uvar> <exp>)*) <exp>)
+;;        |  (letrec ((<uvar> <exp>)*) <exp>)
+;;        |  (<prim> <exp>*)
+;;        |  (<exp> <exp>*)
+;; <immediate> ::= ()
+;;              |  <boolean>
+;;              |  <fixnum>
