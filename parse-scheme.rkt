@@ -95,7 +95,7 @@
         ((quote ,d) (if (datum? d)
                         exp
                         (error 'parse-scheme "invalid datum ~s" d)))
-        ((if ,q ,a) `(if ,((parse env) q) ,((parse env) a) (void)))
+        ((if ,q ,a) `(if ,((parse env) q) ,((parse env) a) (primapp void)))
         ((if ,q ,a ,e) `(if ,((parse env) q) ,((parse env) a) ,((parse env) e)))
         ((set! ,x ,e) (let ((x (cond ((assq x env) => cdr)
                                      ((assq x prim-env)
