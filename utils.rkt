@@ -23,15 +23,11 @@
   (lambda ()
     (set! x (+ x 1))
     x))
-;; (define unique-symbol
-;;   (let ((counter (make-counter -1)))
-;;     (lambda (x)
-;;       (string->symbol
-;;        (format "~s.~s" x (counter))))))
 (define unique-symbol
   (let ((counter (make-counter -1)))
     (lambda (x)
-      (list 'uvar x (counter)))))
+      (string->symbol
+       (format "~s.~s" x (counter))))))
 (define (set? x)
   (cond ((null? x) #t)
         ((memq (car x) (cdr x)) #f)
@@ -59,9 +55,9 @@
 (define (: bds k)
   (k (map car bds) (map cadr bds)))
 (define (Let x* e* body)
-  (list 'let (map (lambda (x e) (cons x (cons e '()))) x* e*) body))
+  (list 'let (map list x* e*) body))
 (define (Letrec x* e* body)
-  (list 'letrec (map (lambda (x e) (cons x (cons e '()))) x* e*) body))
+  (list 'letrec (map list x* e*) body))
 (define (datum? x)
   (or (null? x) (boolean? x) (target-fixnum? x)
       (and (pair? x) (datum? (car x)) (datum? (cdr x)))
@@ -74,3 +70,36 @@
 (define-syntax push!
   (syntax-rules ()
     ((_ x l) (set! l (cons x l)))))
+(define prims
+  '(+
+    -
+    *
+    =
+    <
+    >
+    <=
+    >=
+    null?
+    boolean?
+    fixnum?
+    pair?
+    vector?
+    box?
+    procedure?
+    eq?
+    not
+    cons
+    car
+    cdr
+    set-car!
+    set-cdr!
+    make-vector
+    vector-length
+    vector-ref
+    vector-set!
+    box
+    unbox
+    set-box!
+    void))
+(define (prim? x)
+  (if (memq x prims) #t #f))

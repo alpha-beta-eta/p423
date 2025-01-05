@@ -1,28 +1,28 @@
 #lang racket
 (provide parse-scheme)
 (require "utils.rkt")
-;<exp> ::= <fixnum>
-;       |  <boolean>
-;       |  (quote <datum>)
-;       |  <var>
-;       |  (if <exp> <exp>)
-;       |  (if <exp> <exp> <exp>)
-;       |  (set! <var> <exp>)
-;       |  (begin <exp>+)
-;       |  (lambda (<var>*) <exp>+)
-;       |  (let ((<var> <exp>)*) <exp>+)
-;       |  (letrec ((<var> <exp>)*) <exp>+)
-;       |  (and <exp>*)
-;       |  (or <exp>*)
-;       |  (<prim> <exp>*)
-;       |  (<exp> <exp>*)
-;<datum> ::= ()
-;         |  <boolean>
-;         |  <fixnum>
-;         |  (<datum> . <datum>)
-;         |  #(<datum>*)
-;<boolean> ::= #t
-;           |  #f
+;; <exp> ::= <fixnum>
+;;        |  <boolean>
+;;        |  (quote <datum>)
+;;        |  <var>
+;;        |  (if <exp> <exp>)
+;;        |  (if <exp> <exp> <exp>)
+;;        |  (set! <var> <exp>)
+;;        |  (begin <exp>+)
+;;        |  (lambda (<var>*) <exp>+)
+;;        |  (let ((<var> <exp>)*) <exp>+)
+;;        |  (letrec ((<var> <exp>)*) <exp>+)
+;;        |  (and <exp>*)
+;;        |  (or <exp>*)
+;;        |  (<prim> <exp>*)
+;;        |  (<exp> <exp>*)
+;; <datum> ::= ()
+;;          |  <boolean>
+;;          |  <fixnum>
+;;          |  (<datum> . <datum>)
+;;          |  #(<datum>*)
+;; <boolean> ::= #t
+;;            |  #f
 (define (parse-scheme exp)
   (define prim-env
     '((+ . 2)
@@ -66,60 +66,66 @@
                                     `(quote ,n)
                                     (error 'parse-scheme "invalid number ~s" n)))
         (,b (guard (boolean? b)) `(quote ,b))
-        (,x (guard (symbol? x)) (cond ((assq x env) => cdr)
-                                      ((assq x prim-env)
-                                       (error 'parse-scheme "primitive ~s should not appear independently" x))
-                                      (else (error 'parse-scheme "unbound variable ~s" x))))
-        ((,rator . ,rands) (if (symbol? rator)
-                               (let ((a (assq rator env)))
-                                 (if a
-                                     (let ((rator (cdr a))
-                                           (rands (map (parse env) rands)))
-                                       (cons 'procapp (cons rator rands)))
-                                     (let ((a (assq rator prim-env)))
-                                       (if a
-                                           (let ((arity (cdr a)))
-                                             (unless (= (length rands) arity)
-                                               (error 'parse-scheme
-                                                      "arity mismatch expected ~s given ~s"
-                                                      arity (length rands)))
-                                             (let ((rands (map (parse env) rands)))
-                                               (if (eq? rator 'not)
-                                                   `(if ,(car rands) '#f '#t)
-                                                   (cons 'primapp (cons rator rands)))))
-                                           ((parse-form env) exp)))))
-                               (map (parse env) exp))))))
+        (,x (guard (symbol? x))
+            (cond ((assq x env) => cdr)
+                  ((assq x prim-env)
+                   (error 'parse-scheme
+                          "primitive ~s should not appear independently" x))
+                  (else (error 'parse-scheme "unbound variable ~s" x))))
+        ((,rator . ,rands)
+         (if (symbol? rator)
+             (let ((a (assq rator env)))
+               (if a
+                   (let ((rator (cdr a))
+                         (rands (map (parse env) rands)))
+                     (cons rator rands))
+                   (let ((a (assq rator prim-env)))
+                     (if a
+                         (let ((arity (cdr a)))
+                           (unless (= (length rands) arity)
+                             (error 'parse-scheme
+                                    "arity mismatch expected ~s given ~s"
+                                    arity (length rands)))
+                           (let ((rands (map (parse env) rands)))
+                             (if (eq? rator 'not)
+                                 `(if ,(car rands) '#f '#t)
+                                 (cons rator rands))))
+                         ((parse-form env) exp)))))
+             (map (parse env) exp))))))
   (define (parse-form env)
     (lambda (exp)
       (match exp
         ((quote ,d) (if (datum? d)
                         exp
                         (error 'parse-scheme "invalid datum ~s" d)))
-        ((if ,q ,a) `(if ,((parse env) q) ,((parse env) a) (primapp void)))
+        ((if ,q ,a) `(if ,((parse env) q) ,((parse env) a) (void)))
         ((if ,q ,a ,e) `(if ,((parse env) q) ,((parse env) a) ,((parse env) e)))
-        ((set! ,x ,e) (let ((x (cond ((assq x env) => cdr)
-                                     ((assq x prim-env)
-                                      (error 'parse-scheme "can't assign to prim ~s" x))
-                                     (else (error 'parse-scheme "unbound variable ~s" x))))
-                            (e ((parse env) e)))
-                        `(set! ,x ,e)))
+        ((set! ,x ,e)
+         (let ((x (cond ((assq x env) => cdr)
+                        ((assq x prim-env)
+                         (error 'parse-scheme "can't assign to prim ~s" x))
+                        (else (error 'parse-scheme "unbound variable ~s" x))))
+               (e ((parse env) e)))
+           `(set! ,x ,e)))
         ((begin . ,exps) (make-body exps env))
-        ((and . ,exps) (if (null? exps)
-                           ''#t
-                           (let ((exps (map (parse env) exps)))
-                             (let loop ((exp (car exps)) (exps (cdr exps)))
-                               (if (null? exps)
-                                   exp
-                                   `(if ,exp ,(loop (car exps) (cdr exps)) '#f))))))
-        ((or . ,exps) (if (null? exps)
-                          ''#f
-                          (let ((exps (map (parse env) exps)))
-                            (let loop ((exp (car exps)) (exps (cdr exps)))
-                              (if (null? exps)
-                                  exp
-                                  (let ((t (unique-symbol 't)))
-                                    `(let ((,t ,exp))
-                                       (if ,t ,t ,(loop (car exps) (cdr exps))))))))))
+        ((and . ,exps)
+         (if (null? exps)
+             ''#t
+             (let ((exps (map (parse env) exps)))
+               (let loop ((exp (car exps)) (exps (cdr exps)))
+                 (if (null? exps)
+                     exp
+                     `(if ,exp ,(loop (car exps) (cdr exps)) '#f))))))
+        ((or . ,exps)
+         (if (null? exps)
+             ''#f
+             (let ((exps (map (parse env) exps)))
+               (let loop ((exp (car exps)) (exps (cdr exps)))
+                 (if (null? exps)
+                     exp
+                     (let ((t (unique-symbol 't)))
+                       `(let ((,t ,exp))
+                          (if ,t ,t ,(loop (car exps) (cdr exps))))))))))
         ((lambda ,x* . ,exps)
          (unless (set? x*)
            (error 'parse-scheme "invalid formals ~s" x*))
@@ -149,14 +155,3 @@
                 (Letrec x*^ e* body)))))
         (,else (error 'parse-scheme "unbound variable ~s" (car exp))))))
   ((parse '()) exp))
-;<exp> ::= (quote <datum>)
-;       |  <uvar>
-;       |  (if <exp> <exp> <exp>)
-;       |  (set! <uvar> <exp>)
-;       |  (begin <exp>+)
-;       |  (lambda (<uvar>*) <exp>)
-;       |  (let ((<uvar> <exp>)*) <exp>)
-;       |  (letrec ((<uvar> <exp>)*) <exp>)
-;       |  (primapp <prim> <exp>*)
-;       |  (procapp <exp> <exp>*)
-;<uvar> ::= (uvar <symbol> <integer>)
