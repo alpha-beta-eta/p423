@@ -130,8 +130,8 @@
          (unless (set? x*)
            (error 'parse-scheme "invalid formals ~s" x*))
          (let* ((x*^ (map unique-symbol x*))
-                (env (append (map cons x* x*^) env))
-                (body (make-body exps env)))
+                (env^ (append (map cons x* x*^) env))
+                (body (make-body exps env^)))
            `(lambda ,x*^ ,body)))
         ((let ,bds . ,exps)
          (: bds
